@@ -32,16 +32,7 @@ export class Perfil {
   costo: number; // cuenta.costo_total / cuenta.numero_perfiles
 
   @Column('decimal', { precision: 10, scale: 2 })
-  ganancia: number; // precio - costo
-
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  para_empleado: number;
-
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  para_admin: number;
-
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  para_negocio: number;
+  ganancia: number;
 
   @ManyToOne(() => Cuenta, (cuenta) => cuenta.perfiles, {
     eager: true,

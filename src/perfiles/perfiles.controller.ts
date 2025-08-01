@@ -1,4 +1,4 @@
-//src/perfiles/perfiles.controller.ts
+// src/perfiles/perfiles.controller.ts
 import {
   Controller,
   Post,
@@ -28,13 +28,8 @@ export class PerfilesController {
     return this.perfilesService.create(dto, usuario);
   }
 
-  @Get()
-  findAll() {
-    return this.perfilesService.findAll();
-  }
-
   @Get('cuenta/:cuentaId')
-  async getPerfilesPorCuenta(
+  getPerfilesPorCuenta(
     @Param('cuentaId', ParseIntPipe) cuentaId: number,
   ): Promise<Perfil[]> {
     return this.perfilesService.findByCuentaId(cuentaId);
@@ -48,11 +43,5 @@ export class PerfilesController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.perfilesService.remove(id);
-  }
-
-  // 🔻 ESTA ruta debe ir al final
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.perfilesService.findOne(id);
   }
 }

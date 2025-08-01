@@ -17,10 +17,8 @@ import { PlataformasModule } from './plataformas/plataformas.module';
 import { CuentasModule } from './cuentas/cuentas.module';
 import { PerfilesModule } from './perfiles/perfiles.module';
 import { ClientesModule } from './clientes/clientes.module';
-import { EgresoFijo } from './finanzas/egresos-fijos/entities/egreso-fijo.entity';
-import { CompraInversion } from './finanzas/compras-inversiones/entities/compra-inversion.entity';
-import { Perdida } from './finanzas/perdidas/entities/perdida.entity';
-import { FinanzasModule } from './finanzas/finanzas.module';
+import { InventarioPerfilModule } from './inventario-perfil/inventario-perfil.module';
+import { InventarioPerfil } from './entities/inventario-perfil.entity';
 
 @Module({
   imports: [
@@ -41,9 +39,7 @@ import { FinanzasModule } from './finanzas/finanzas.module';
         Perfil,
         Cliente,
         BitacoraAccion,
-        EgresoFijo,
-        CompraInversion,
-        Perdida,
+        InventarioPerfil,
       ],
       synchronize: true,
     }),
@@ -54,7 +50,7 @@ import { FinanzasModule } from './finanzas/finanzas.module';
     CuentasModule,
     PerfilesModule,
     ClientesModule,
-    FinanzasModule,
+    InventarioPerfilModule,
   ],
   controllers: [AppController],
   providers: [AppService],

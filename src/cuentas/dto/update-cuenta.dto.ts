@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsDateString, IsNumber } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsNumber,
+  IsBoolean,
+} from 'class-validator';
 
 export class UpdateCuentaDto {
   @IsOptional()
@@ -31,4 +37,8 @@ export class UpdateCuentaDto {
 
   @IsOptional()
   plataformaId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  inhabilitada?: boolean;
 }
