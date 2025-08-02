@@ -106,6 +106,8 @@ export class PerfilesService {
     await this.inventarioPerfilService.registrarSalida(
       cuenta.plataformaId,
       cuenta.negocioId,
+      1, // perfiles vendidos = 1
+      `Perfil de "${cuenta.correo}" vendido a "${cliente.nombre}"`,
     );
 
     return nuevoPerfil;
@@ -158,6 +160,7 @@ export class PerfilesService {
       negocioId: perfil.cuenta.negocioId,
       perfiles: 1,
       costoTotal: Number(perfil.costo),
+      descripcion: `Perfil de "${perfil.cuenta.correo}" desocupado`,
     });
 
     await this.perfilRepo.remove(perfil);

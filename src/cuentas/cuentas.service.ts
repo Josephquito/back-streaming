@@ -94,6 +94,7 @@ export class CuentasService {
       negocioId: cuentaGuardada.negocioId,
       perfiles: cuentaGuardada.numero_perfiles,
       costoTotal: cuentaGuardada.costo_total,
+      descripcion: `Compra cuenta ${cuentaGuardada.correo} al proveedor ${cuentaGuardada.proveedor}`,
     });
 
     return cuentaGuardada;
@@ -171,6 +172,7 @@ export class CuentasService {
         perfiles: perfilesDisponibles,
         costoTotal:
           cuenta.costo_total * (perfilesDisponibles / cuenta.numero_perfiles),
+        descripcion: `Cuenta "${cuenta.correo}" rehabilitada`,
       });
     }
 
@@ -184,6 +186,7 @@ export class CuentasService {
         cuenta.plataformaId,
         cuenta.negocioId,
         perfilesDisponibles,
+        `Cuenta "${cuenta.correo}" deshabilitada`,
       );
     }
 
@@ -195,6 +198,7 @@ export class CuentasService {
       where: { id },
       relations: ['perfiles'],
     });
+    console.log('Usuario que elimina la cuenta:', usuario);
 
     if (!cuenta) throw new NotFoundException('Cuenta no encontrada.');
 
@@ -212,6 +216,7 @@ export class CuentasService {
         cuenta.plataformaId,
         cuenta.negocioId,
         perfilesDisponibles,
+        `Cuenta "${cuenta.correo}" eliminada por ${usuario.nombre}`,
       );
     }
 
@@ -270,6 +275,7 @@ export class CuentasService {
 
     // 🔁 CASO 2: reemplazo como si fuese compra nueva
     if (dto.tipo === 'COMPRA_NUEVA') {
+      const correoAntiguo = cuenta.correo;
       cuenta.inhabilitada = true;
       await this.cuentaRepo.save(cuenta);
 
@@ -277,6 +283,7 @@ export class CuentasService {
         cuenta.plataformaId,
         negocioId,
         cuenta.numero_perfiles,
+        `Cuenta "${correoAntiguo}" para reemplazo`,
       );
 
       const dias = convertirTiempoADias(dto.tiempo_establecido);
@@ -300,6 +307,7 @@ export class CuentasService {
         plataformaId: cuenta.plataformaId,
         perfiles: cuenta.numero_perfiles,
         costoTotal: cuenta.costo_total,
+        descripcion: `Compra cuenta "${cuenta.correo}" que reemplaza "${correoAntiguo}"`,
       });
 
       return actualizada;
@@ -350,6 +358,7 @@ export class CuentasService {
         cuenta.plataformaId,
         negocioId,
         perfilesOriginales,
+        `Cuenta "${cuenta.correo}" caida, reemplazada por "${correoRealDonadora}"`,
       );
 
       // 🔁 Transferir datos de la donadora a la cuenta original

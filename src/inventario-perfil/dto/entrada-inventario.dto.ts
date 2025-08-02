@@ -4,4 +4,5 @@ export class EntradaInventarioDto {
   negocioId: number;
   perfiles: number;
   costoTotal: number;
+  descripcion?: string;
 }

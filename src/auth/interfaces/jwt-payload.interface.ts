@@ -4,4 +4,5 @@ export interface JwtPayload {
   id: number;
   rol: 'superadmin' | 'admin' | 'empleado';
   negocioId?: number | null;
+  nombre: string;
 }

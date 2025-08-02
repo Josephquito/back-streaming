@@ -3,9 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventarioPerfil } from 'src/entities/inventario-perfil.entity';
 import { InventarioPerfilService } from './inventario-perfil.service';
 import { InventarioPerfilController } from './inventario-perfil.controller';
+import { MovimientoInventarioModule } from 'src/movimiento-inventario/movimiento-inventario.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([InventarioPerfil])],
+  imports: [
+    TypeOrmModule.forFeature([InventarioPerfil]),
+    MovimientoInventarioModule,
+  ],
   controllers: [InventarioPerfilController],
   providers: [InventarioPerfilService],
   exports: [InventarioPerfilService],

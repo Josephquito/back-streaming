@@ -19,6 +19,8 @@ import { PerfilesModule } from './perfiles/perfiles.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { InventarioPerfilModule } from './inventario-perfil/inventario-perfil.module';
 import { InventarioPerfil } from './entities/inventario-perfil.entity';
+import { MovimientoInventarioModule } from './movimiento-inventario/movimiento-inventario.module';
+import { MovimientoInventario } from './entities/movimiento-inventario.entity';
 
 @Module({
   imports: [
@@ -40,6 +42,7 @@ import { InventarioPerfil } from './entities/inventario-perfil.entity';
         Cliente,
         BitacoraAccion,
         InventarioPerfil,
+        MovimientoInventario,
       ],
       synchronize: true,
     }),
@@ -51,6 +54,7 @@ import { InventarioPerfil } from './entities/inventario-perfil.entity';
     PerfilesModule,
     ClientesModule,
     InventarioPerfilModule,
+    MovimientoInventarioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

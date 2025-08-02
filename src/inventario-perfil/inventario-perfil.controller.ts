@@ -37,8 +37,15 @@ export class InventarioPerfilController {
   }
 
   @Get()
-  obtenerInventario(@Query('negocioId') negocioId: number) {
-    return this.service.obtenerInventario(Number(negocioId));
+  obtenerInventario(@UsuarioActual() usuario: JwtPayload) {
+    const negocioId = usuario.negocioId;
+    if (!negocioId) {
+      throw new UnauthorizedException(
+        'Tu cuenta no está asociada a un negocio.',
+      );
+    }
+
+    return this.service.obtenerInventario(negocioId);
   }
 
   // NUEVO: Obtener inventario de una plataforma para el negocio autenticado
