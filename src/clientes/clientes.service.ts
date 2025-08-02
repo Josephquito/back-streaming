@@ -90,6 +90,30 @@ export class ClientesService {
     });
   }
 
+  async obtenerHistorialCompleto(clienteId: number) {
+    const cliente = await this.findOne(clienteId);
+
+    const perfiles = await this.perfilRepo.find({
+      where: { cliente: { id: clienteId } },
+      relations: ['cuenta', 'cuenta.plataforma'],
+      order: { fecha_venta: 'DESC' },
+    });
+
+    const hoy = dayjs().format('YYYY-MM-DD');
+    const perfilesActivos = perfiles.filter((p) =>
+      dayjs(p.fecha_corte).isAfter(hoy),
+    );
+    const historialPerfiles = perfiles.filter(
+      (p) => !dayjs(p.fecha_corte).isAfter(hoy),
+    );
+
+    return {
+      cliente,
+      perfilesActivos,
+      historialPerfiles,
+    };
+  }
+
   async obtenerResumenClientes(negocioId: number) {
     const query = this.perfilRepo
       .createQueryBuilder('perfil')

@@ -48,14 +48,9 @@ export class ClientesController {
     return this.clientesService.remove(id);
   }
 
-  @Get(':id/perfiles/activos')
-  perfilesActivos(@Param('id', ParseIntPipe) id: number) {
-    return this.clientesService.obtenerPerfilesActivos(id);
-  }
-
-  @Get(':id/perfiles/historial')
-  historialPerfiles(@Param('id', ParseIntPipe) id: number) {
-    return this.clientesService.obtenerHistorialPerfiles(id);
+  @Get(':id/historial')
+  obtenerHistorialCompleto(@Param('id', ParseIntPipe) id: number) {
+    return this.clientesService.obtenerHistorialCompleto(id);
   }
 
   @Get('resumen/general')
