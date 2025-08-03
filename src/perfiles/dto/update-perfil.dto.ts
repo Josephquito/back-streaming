@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsString,
   Min,
+  IsBoolean,
 } from 'class-validator';
 
 export class UpdatePerfilDto {
@@ -19,4 +20,12 @@ export class UpdatePerfilDto {
   @IsNumber()
   @Min(0)
   precio?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  activo?: boolean; // 👈 esto permite cambiar el estado
+
+  @IsOptional()
+  @IsDateString()
+  fecha_baja?: string;
 }

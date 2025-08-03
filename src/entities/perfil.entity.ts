@@ -1,4 +1,3 @@
-//src/entities/perfil.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -17,33 +16,43 @@ export class Perfil {
   id: number;
 
   @Column()
-  tiempo_asignado: string; // Ej: "1 mes", "30 días"
+  tiempo_asignado: string;
 
   @Column({ type: 'date' })
-  fecha_venta: Date; // se ingresa
+  fecha_venta: Date;
 
-  @Column({ type: 'date' })
-  fecha_corte: string; // se calcula
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  precio: number; // se ingresa
+  @Column({ type: 'date', nullable: true })
+  fecha_corte: string | null;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  costo: number; // cuenta.costo_total / cuenta.numero_perfiles
+  precio: number;
+
+  @Column('decimal', { precision: 10, scale: 2 })
+  costo: number;
 
   @Column('decimal', { precision: 10, scale: 2 })
   ganancia: number;
 
+  // ✅ Relación con Cuenta (nullable)
   @ManyToOne(() => Cuenta, (cuenta) => cuenta.perfiles, {
     eager: true,
-    onDelete: 'CASCADE',
+    nullable: true,
+    onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'cuentaId' })
-  cuenta: Cuenta;
+  cuenta: Cuenta | null;
 
-  @Column()
-  cuentaId: number;
+  @Column({ nullable: true })
+  cuentaId: number | null;
 
+  // ✅ Copias de seguridad para historial
+  @Column({ type: 'varchar', nullable: true })
+  correo_asignado: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  plataforma_asignada: string;
+
+  // Relaciones normales
   @ManyToOne(() => Cliente, (cliente) => cliente.perfiles, { eager: true })
   @JoinColumn({ name: 'clienteId' })
   cliente: Cliente;
@@ -62,4 +71,10 @@ export class Perfil {
 
   @CreateDateColumn()
   fecha_insercion: Date;
+
+  @Column({ default: true })
+  activo: boolean;
+
+  @Column({ type: 'date', nullable: true })
+  fecha_baja: string | null;
 }

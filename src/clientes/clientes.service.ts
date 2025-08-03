@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
@@ -65,29 +66,50 @@ export class ClientesService {
   }
 
   async remove(id: number): Promise<void> {
-    const result = await this.clienteRepo.delete(id);
-    if (result.affected === 0) {
+    const cliente = await this.clienteRepo.findOne({
+      where: { id },
+      relations: ['perfiles'], // asegúrate de tener la relación definida
+    });
+
+    if (!cliente) {
       throw new NotFoundException('Cliente no encontrado');
     }
+
+    if (cliente.perfiles.length > 0) {
+      throw new BadRequestException(
+        'No se puede eliminar un cliente con perfiles asociados o inactivos.',
+      );
+    }
+
+    await this.clienteRepo.delete(id);
   }
 
+  // Activos: solo perfiles activos
   async obtenerPerfilesActivos(clienteId: number): Promise<Perfil[]> {
     const hoy = dayjs().format('YYYY-MM-DD');
     return this.perfilRepo.find({
       where: {
         cliente: { id: clienteId },
         fecha_corte: MoreThan(hoy),
+        activo: true,
       },
       relations: ['cuenta', 'cuenta.plataforma'],
     });
   }
 
+  // Historial: incluye todos los perfiles que tuvo, incluso los eliminados
   async obtenerHistorialPerfiles(clienteId: number): Promise<Perfil[]> {
-    return this.perfilRepo.find({
+    const hoy = dayjs().format('YYYY-MM-DD');
+
+    const perfiles = await this.perfilRepo.find({
       where: { cliente: { id: clienteId } },
       order: { fecha_venta: 'DESC' },
       relations: ['cuenta', 'cuenta.plataforma'],
     });
+
+    return perfiles.filter(
+      (p) => !p.activo || !dayjs(p.fecha_corte).isAfter(hoy),
+    );
   }
 
   async obtenerHistorialCompleto(clienteId: number) {
@@ -100,12 +122,22 @@ export class ClientesService {
     });
 
     const hoy = dayjs().format('YYYY-MM-DD');
-    const perfilesActivos = perfiles.filter((p) =>
-      dayjs(p.fecha_corte).isAfter(hoy),
+
+    const perfilesActivos = perfiles.filter(
+      (p) => p.activo && dayjs(p.fecha_corte).isAfter(hoy),
     );
-    const historialPerfiles = perfiles.filter(
-      (p) => !dayjs(p.fecha_corte).isAfter(hoy),
-    );
+
+    const historialPerfiles = perfiles
+      .filter((p) => !p.activo || !dayjs(p.fecha_corte).isAfter(hoy))
+      .map((p) => {
+        return {
+          ...p,
+          cuenta: null,
+          // usa directamente lo que ya se guardó en la BD, sin fallback
+          correo_asignado: p.correo_asignado,
+          plataforma_asignada: p.plataforma_asignada,
+        };
+      });
 
     return {
       cliente,

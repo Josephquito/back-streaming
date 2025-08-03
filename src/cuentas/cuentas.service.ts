@@ -114,10 +114,17 @@ export class CuentasService {
       relations: ['perfiles', 'plataforma'],
     });
 
-    return cuentas.map((cuenta) => ({
-      ...cuenta,
-      perfiles_usados: cuenta.perfiles.length,
-    }));
+    return cuentas.map((cuenta) => {
+      const perfilesActivos = cuenta.perfiles.filter((p) => p.activo !== false);
+      return {
+        ...cuenta,
+        perfiles_usados: perfilesActivos.length,
+      };
+    });
+  }
+
+  private contarPerfilesActivos(cuenta: Cuenta): number {
+    return cuenta.perfiles.filter((p) => p.activo !== false).length;
   }
 
   async update(id: number, dto: UpdateCuentaDto): Promise<Cuenta> {
@@ -157,7 +164,7 @@ export class CuentasService {
       }
     }
 
-    const perfilesVendidos = cuenta.perfiles.length;
+    const perfilesVendidos = this.contarPerfilesActivos(cuenta);
     const perfilesDisponibles = cuenta.numero_perfiles - perfilesVendidos;
 
     // 🔁 Se habilita la cuenta → agregar al inventario los perfiles disponibles
@@ -198,7 +205,6 @@ export class CuentasService {
       where: { id },
       relations: ['perfiles'],
     });
-    console.log('Usuario que elimina la cuenta:', usuario);
 
     if (!cuenta) throw new NotFoundException('Cuenta no encontrada.');
 
@@ -206,11 +212,34 @@ export class CuentasService {
       throw new ForbiddenException('No tienes acceso a esta cuenta.');
     }
 
-    const perfilesVendidos = cuenta.perfiles.length;
+    // 🔍 Verificar si hay perfiles activos asignados a un cliente
+    const perfilesConClienteActivos = cuenta.perfiles.filter(
+      (p) => p.activo === true && p.clienteId !== null,
+    );
+
+    if (perfilesConClienteActivos.length > 0) {
+      throw new ConflictException(
+        'No se puede eliminar la cuenta porque tiene perfiles activos asignados a clientes.',
+      );
+    }
+
+    // ✅ Desvincular perfiles inactivos (activo: false) del campo cuenta/cuentaId
+    for (const perfil of cuenta.perfiles) {
+      if (perfil.activo === false) {
+        perfil.cuenta = null;
+        perfil.cuentaId = null;
+        await this.perfilRepo.save(perfil);
+      }
+    }
+
+    // 📦 Calcular cuántos espacios disponibles quedan (slots no vendidos)
+    const perfilesVendidos = cuenta.perfiles.filter(
+      (p) => p.activo === true && p.clienteId !== null,
+    ).length;
     const perfilesTotales = cuenta.numero_perfiles;
     const perfilesDisponibles = perfilesTotales - perfilesVendidos;
 
-    // ✅ Solo descontar del inventario si la cuenta aún está habilitada
+    // 📉 Actualizar inventario si corresponde
     if (!cuenta.inhabilitada && perfilesDisponibles > 0) {
       await this.inventarioPerfilService.registrarSalida(
         cuenta.plataformaId,
@@ -220,7 +249,7 @@ export class CuentasService {
       );
     }
 
-    // 🔥 Eliminar la cuenta (y sus perfiles por cascade)
+    // 🔥 Finalmente eliminar la cuenta (sin afectar el historial)
     await this.cuentaRepo.remove(cuenta);
   }
 
@@ -270,7 +299,29 @@ export class CuentasService {
     if (dto.tipo === 'PROVEEDOR') {
       cuenta.correo = dto.nuevoCorreo;
       cuenta.clave = dto.nuevaClave;
-      return await this.cuentaRepo.save(cuenta);
+      const guardada = await this.cuentaRepo.save(cuenta);
+
+      const cuentaConPlataforma = await this.cuentaRepo.findOne({
+        where: { id: cuenta.id },
+        relations: ['plataforma'],
+      });
+
+      if (!cuentaConPlataforma) {
+        throw new NotFoundException('Cuenta actualizada no encontrada.');
+      }
+
+      await this.perfilRepo.update(
+        {
+          cuentaId: cuenta.id,
+          activo: true,
+        },
+        {
+          correo_asignado: cuentaConPlataforma.correo,
+          plataforma_asignada: cuentaConPlataforma.plataforma?.nombre,
+        },
+      );
+
+      return guardada;
     }
 
     // 🔁 CASO 2: reemplazo como si fuese compra nueva
@@ -279,12 +330,17 @@ export class CuentasService {
       cuenta.inhabilitada = true;
       await this.cuentaRepo.save(cuenta);
 
-      await this.inventarioPerfilService.registrarSalida(
-        cuenta.plataformaId,
-        negocioId,
-        cuenta.numero_perfiles,
-        `Cuenta "${correoAntiguo}" para reemplazo`,
-      );
+      const perfilesVendidos = this.contarPerfilesActivos(cuenta);
+      const perfilesDisponibles = cuenta.numero_perfiles - perfilesVendidos;
+
+      if (perfilesDisponibles > 0) {
+        await this.inventarioPerfilService.registrarSalida(
+          cuenta.plataformaId,
+          negocioId,
+          perfilesDisponibles,
+          `Cuenta "${correoAntiguo}" para reemplazo (${perfilesDisponibles} libres)`,
+        );
+      }
 
       const dias = convertirTiempoADias(dto.tiempo_establecido);
       const nuevaFechaCorte = dayjs(dto.fecha_compra)
@@ -305,10 +361,30 @@ export class CuentasService {
       await this.inventarioPerfilService.registrarEntrada({
         negocioId,
         plataformaId: cuenta.plataformaId,
-        perfiles: cuenta.numero_perfiles,
+        perfiles: perfilesDisponibles,
         costoTotal: cuenta.costo_total,
-        descripcion: `Compra cuenta "${cuenta.correo}" que reemplaza "${correoAntiguo}"`,
+        descripcion: `Compra cuenta "${cuenta.correo}" que reemplaza "${correoAntiguo}" (${perfilesDisponibles} libres)`,
       });
+
+      const cuentaConPlataforma = await this.cuentaRepo.findOne({
+        where: { id: cuenta.id },
+        relations: ['plataforma'],
+      });
+
+      if (!cuentaConPlataforma) {
+        throw new NotFoundException('Cuenta actualizada no encontrada.');
+      }
+
+      await this.perfilRepo.update(
+        {
+          cuentaId: cuenta.id,
+          activo: true,
+        },
+        {
+          correo_asignado: cuentaConPlataforma.correo,
+          plataforma_asignada: cuentaConPlataforma.plataforma?.nombre,
+        },
+      );
 
       return actualizada;
     }
@@ -324,17 +400,22 @@ export class CuentasService {
         relations: ['perfiles'],
       });
 
-      if (!nueva) throw new NotFoundException('Cuenta existente no válida.');
-      if (nueva.perfiles.length > 0) {
+      if (!nueva) {
+        throw new NotFoundException('Cuenta existente no válida.');
+      }
+
+      const perfilesActivos = nueva.perfiles.filter((p) => p.activo !== false);
+
+      if (perfilesActivos.length > 0) {
         throw new ConflictException(
           'La cuenta existente ya tiene perfiles asignados.',
         );
       }
+
       if (dayjs(nueva.fecha_corte).isBefore(dayjs())) {
         throw new ConflictException('La cuenta existente ya está vencida.');
       }
 
-      // 📦 Copiar datos originales de la cuenta caída
       const datosOriginales = {
         correo: cuenta.correo,
         clave: cuenta.clave,
@@ -349,11 +430,9 @@ export class CuentasService {
       const perfilesOriginales = cuenta.numero_perfiles;
       const correoRealDonadora = nueva.correo;
 
-      // 🧪 Renombrar correo de la donadora para liberar el real
       nueva.correo = `tmp-${uuidv4()}@temporal.com`;
       await this.cuentaRepo.save(nueva);
 
-      // 📉 Salida de inventario solo por la cuenta caída
       await this.inventarioPerfilService.registrarSalida(
         cuenta.plataformaId,
         negocioId,
@@ -361,7 +440,6 @@ export class CuentasService {
         `Cuenta "${cuenta.correo}" caida, reemplazada por "${correoRealDonadora}"`,
       );
 
-      // 🔁 Transferir datos de la donadora a la cuenta original
       cuenta.correo = correoRealDonadora;
       cuenta.clave = nueva.clave;
       cuenta.proveedor = nueva.proveedor;
@@ -374,9 +452,17 @@ export class CuentasService {
 
       const actualizada = await this.cuentaRepo.save(cuenta);
 
-      // ❌ No registrar entrada: los perfiles de la cuenta donadora ya estaban en el inventario
+      await this.perfilRepo.update(
+        {
+          cuentaId: cuenta.id,
+          activo: true,
+        },
+        {
+          correo_asignado: cuenta.correo,
+          plataforma_asignada: nueva.plataforma?.nombre,
+        },
+      );
 
-      // 🔁 Guardar datos de la cuenta original en la donadora (que ahora queda inhabilitada)
       nueva.correo = datosOriginales.correo;
       nueva.clave = datosOriginales.clave;
       nueva.proveedor = datosOriginales.proveedor;

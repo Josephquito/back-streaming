@@ -5,7 +5,7 @@ import {
   Get,
   Param,
   Body,
-  Put,
+  Patch,
   Delete,
   ParseIntPipe,
   UseGuards,
@@ -38,8 +38,11 @@ export class ClientesController {
     return this.clientesService.findOne(id);
   }
 
-  @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateClienteDto) {
+  @Patch(':id')
+  updatePatch(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateClienteDto,
+  ) {
     return this.clientesService.update(id, dto);
   }
 

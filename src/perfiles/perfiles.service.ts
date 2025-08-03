@@ -39,11 +39,8 @@ function convertirTiempoADias(tiempo: string): number {
 @Injectable()
 export class PerfilesService {
   constructor(
-    @InjectRepository(Perfil)
-    private readonly perfilRepo: Repository<Perfil>,
-
-    @InjectRepository(Cuenta)
-    private readonly cuentaRepo: Repository<Cuenta>,
+    @InjectRepository(Perfil) private perfilRepo: Repository<Perfil>,
+    @InjectRepository(Cuenta) private cuentaRepo: Repository<Cuenta>,
 
     @InjectRepository(Cliente)
     private readonly clienteRepo: Repository<Cliente>,
@@ -54,7 +51,7 @@ export class PerfilesService {
   async create(dto: CreatePerfilDto, usuario: JwtPayload): Promise<Perfil> {
     const cuenta = await this.cuentaRepo.findOne({
       where: { id: dto.cuentaId },
-      relations: ['perfiles'],
+      relations: ['perfiles', 'plataforma'], // 👈 asegúrate de traer también la plataforma
     });
 
     if (!cuenta) throw new NotFoundException('Cuenta no encontrada.');
@@ -62,7 +59,8 @@ export class PerfilesService {
       throw new ForbiddenException('No tienes acceso a esta cuenta.');
     }
 
-    if (cuenta.perfiles.length >= cuenta.numero_perfiles) {
+    const perfilesActivos = cuenta.perfiles.filter((p) => p.activo !== false);
+    if (perfilesActivos.length >= cuenta.numero_perfiles) {
       throw new ForbiddenException(
         `Esta cuenta ya alcanzó el máximo de perfiles permitidos (${cuenta.numero_perfiles}).`,
       );
@@ -99,6 +97,8 @@ export class PerfilesService {
       fecha_corte: fechaCorte,
       usuarioId: usuario.id,
       cuenta,
+      correo_asignado: cuenta.correo,
+      plataforma_asignada: cuenta.plataforma?.nombre,
     });
 
     await this.perfilRepo.save(nuevoPerfil);
@@ -106,34 +106,71 @@ export class PerfilesService {
     await this.inventarioPerfilService.registrarSalida(
       cuenta.plataformaId,
       cuenta.negocioId,
-      1, // perfiles vendidos = 1
+      1,
       `Perfil de "${cuenta.correo}" vendido a "${cliente.nombre}"`,
     );
 
     return nuevoPerfil;
   }
-
   async update(id: number, dto: UpdatePerfilDto): Promise<Perfil> {
-    const perfil = await this.perfilRepo.findOne({ where: { id } });
+    // 🔁 Refrescar el perfil desde la DB, siempre actualizado
+    const perfil = await this.perfilRepo.findOne({
+      where: { id },
+      relations: ['cuenta', 'cuenta.plataforma'],
+    });
+
     if (!perfil) {
       throw new NotFoundException('Perfil no encontrado.');
     }
 
+    // 🔁 Refrescar también la cuenta directamente desde DB
+    if (perfil.cuentaId) {
+      const cuentaActualizada = await this.cuentaRepo.findOne({
+        where: { id: perfil.cuentaId },
+        relations: ['plataforma'],
+      });
+      if (cuentaActualizada) {
+        perfil.cuenta = cuentaActualizada;
+      }
+    }
+
     const precio = dto.precio ?? perfil.precio;
     const tiempo = dto.tiempo_asignado ?? perfil.tiempo_asignado;
-    const fechaVenta = dto.fecha_venta ?? perfil.fecha_venta;
+    const fechaVenta = dto.fecha_venta
+      ? dayjs(dto.fecha_venta).toDate()
+      : perfil.fecha_venta;
+
+    const activo = dto.activo ?? perfil.activo;
     const dias = convertirTiempoADias(tiempo);
     const fechaCorte = dayjs(fechaVenta).add(dias, 'day').format('YYYY-MM-DD');
-
     const ganancia = precio - perfil.costo;
 
-    const actualizado = this.perfilRepo.merge(perfil, dto, {
+    const actualizado: Partial<Perfil> = {
+      ...dto,
       precio,
       ganancia,
-      fecha_corte: fechaCorte,
-    });
+      fecha_venta: fechaVenta,
+      activo,
+    };
 
-    return this.perfilRepo.save(actualizado);
+    if (activo === false) {
+      if (perfil.fecha_baja === null) {
+        actualizado.fecha_baja = dayjs().format('YYYY-MM-DD');
+        actualizado.correo_asignado = perfil.cuenta?.correo;
+        actualizado.plataforma_asignada = perfil.cuenta?.plataforma?.nombre;
+      } else {
+        actualizado.fecha_baja = perfil.fecha_baja;
+        actualizado.correo_asignado = perfil.correo_asignado;
+        actualizado.plataforma_asignada = perfil.plataforma_asignada;
+      }
+      actualizado.fecha_corte = null;
+    } else {
+      actualizado.fecha_baja = null;
+      actualizado.fecha_corte = fechaCorte;
+    }
+
+    const final = this.perfilRepo.merge(perfil, actualizado);
+    return this.perfilRepo.save(final);
   }
 
   async findByCuentaId(cuentaId: number): Promise<Perfil[]> {
@@ -143,6 +180,7 @@ export class PerfilesService {
     });
   }
 
+  // src/perfiles/perfiles.service.ts
   async remove(id: number): Promise<void> {
     const perfil = await this.perfilRepo.findOne({
       where: { id },
@@ -150,6 +188,12 @@ export class PerfilesService {
     });
 
     if (!perfil) throw new NotFoundException('Perfil no encontrado.');
+
+    if (!perfil.cuenta) {
+      throw new BadRequestException(
+        'Este perfil ya no está vinculado a una cuenta.',
+      );
+    }
 
     if (perfil.costo === null || isNaN(Number(perfil.costo))) {
       throw new BadRequestException('El perfil tiene un costo inválido.');
@@ -163,6 +207,10 @@ export class PerfilesService {
       descripcion: `Perfil de "${perfil.cuenta.correo}" desocupado`,
     });
 
-    await this.perfilRepo.remove(perfil);
+    await this.perfilRepo.update(id, {
+      activo: false,
+      fecha_corte: null,
+      fecha_baja: dayjs().format('YYYY-MM-DD'),
+    });
   }
 }
