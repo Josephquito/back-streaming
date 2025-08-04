@@ -6,7 +6,10 @@ async function bootstrap() {
 
   // ✅ Configurar CORS
   app.enableCors({
-    origin: 'http://localhost:4200', // O usa '*' en desarrollo
+    origin: [
+      'http://localhost:4200',
+      'https://front-streaming-73d3.vercel.app',
+    ],
     credentials: true,
   });
 
