@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CrearAdminDto } from './dto/crear-admin.dto';
 import { ActualizarAdminDto } from './dto/actualizar-admin.dto';
+import { ActualizarEmpleadoDto } from './dto/actualizar-empleado.dto';
 
 @Controller('usuarios')
 @UseGuards(JwtAuthGuard)
@@ -32,7 +33,7 @@ export class UsuariosController {
     const { rol, negocioId } = req.user;
 
     if (rol === 'superadmin') {
-      return this.usuariosService.findAll(); // Ver todos
+      return this.usuariosService.findTodos(); // Ver todos
     }
 
     // Admin: solo ver usuarios de su negocio
@@ -40,6 +41,21 @@ export class UsuariosController {
       throw new ForbiddenException('No tiene un negocio asignado');
     }
     return this.usuariosService.findAllByNegocio(negocioId);
+  }
+
+  @Get('todos')
+  findTodos(@Request() req: { user: JwtPayload }) {
+    const { rol, negocioId } = req.user;
+
+    if (rol === 'superadmin') {
+      return this.usuariosService.findTodos();
+    }
+
+    if (!negocioId) {
+      throw new ForbiddenException('No tiene un negocio asignado');
+    }
+
+    return this.usuariosService.findTodosPorNegocio(negocioId);
   }
 
   @Get('admins')
@@ -62,9 +78,9 @@ export class UsuariosController {
   }
 
   @Patch(':id')
-  actualizarAdmin(
+  actualizarUsuario(
     @Param('id') id: string,
-    @Body() body: ActualizarAdminDto,
+    @Body() body: ActualizarAdminDto | ActualizarEmpleadoDto,
     @Request() req: { user: JwtPayload },
   ) {
     const idNum = parseInt(id, 10);
@@ -72,17 +88,33 @@ export class UsuariosController {
       throw new BadRequestException('ID inválido');
     }
 
-    if (req.user.rol !== 'superadmin') {
-      throw new ForbiddenException(
-        'Solo el superadmin puede editar administradores y sus negocios',
-      );
+    if (req.user.rol === 'superadmin') {
+      const dto: ActualizarAdminDto = body;
+      return this.usuariosService.actualizarAdminConNegocio(idNum, dto);
     }
 
-    return this.usuariosService.actualizarAdminConNegocio(idNum, body);
+    const dto: ActualizarEmpleadoDto = body;
+    return this.usuariosService.updateConRestriccion(idNum, dto, req.user);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Request() req: { user: JwtPayload }) {
-    return this.usuariosService.removeConRestriccion(+id, req.user);
+  async remove(@Param('id') id: string, @Request() req: { user: JwtPayload }) {
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum)) {
+      throw new BadRequestException('ID inválido');
+    }
+
+    const { rol } = req.user;
+
+    if (rol === 'superadmin') {
+      return this.usuariosService.removeConRestriccion(idNum, req.user);
+    }
+
+    // Si es admin o empleado, solo puede hacer eliminación lógica de su negocio
+    return this.usuariosService.updateConRestriccion(
+      idNum,
+      { activo: false },
+      req.user,
+    );
   }
 }

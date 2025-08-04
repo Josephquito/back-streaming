@@ -36,16 +36,30 @@ export class ClientesService {
     return this.clienteRepo.save(nuevo);
   }
 
-  async findByNegocio(usuario: JwtPayload): Promise<Cliente[]> {
+  async findByNegocio(usuario: JwtPayload): Promise<any[]> {
     if (!usuario.negocioId) {
       throw new UnauthorizedException('No estás asociado a un negocio.');
     }
 
-    return this.clienteRepo
-      .createQueryBuilder('cliente')
-      .leftJoin('cliente.negocios', 'negocio')
-      .where('negocio.id = :negocioId', { negocioId: usuario.negocioId })
-      .getMany();
+    const clientes = await this.clienteRepo.find({
+      where: {
+        negocios: { id: usuario.negocioId },
+      },
+      relations: ['perfiles', 'negocios'],
+    });
+
+    const hoy = dayjs().format('YYYY-MM-DD');
+
+    return clientes.map((cliente) => {
+      const perfiles_activas = cliente.perfiles.filter(
+        (p) => p.activo && dayjs(p.fecha_corte).isAfter(hoy),
+      );
+
+      return {
+        ...cliente,
+        perfiles_activas,
+      };
+    });
   }
 
   async findOne(id: number): Promise<Cliente> {

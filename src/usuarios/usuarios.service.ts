@@ -108,8 +108,17 @@ export class UsuariosService {
     throw new ForbiddenException('No tiene permisos para crear usuarios');
   }
 
-  findAll() {
-    return this.usuariosRepository.find({ where: { activo: true } });
+  findTodos() {
+    return this.usuariosRepository.find({
+      relations: ['negocio'],
+    });
+  }
+
+  findTodosPorNegocio(negocioId: number) {
+    return this.usuariosRepository.find({
+      where: { negocio: { id: negocioId } },
+      relations: ['negocio'],
+    });
   }
 
   findAllByNegocio(negocioId: number) {
@@ -148,7 +157,7 @@ export class UsuariosService {
       relations: ['negocio'],
     });
 
-    if (!encontrado || !encontrado.activo) return null;
+    if (!encontrado) return null;
 
     if (user.rol === 'superadmin') return encontrado;
 
@@ -170,12 +179,18 @@ export class UsuariosService {
 
   async updateConRestriccion(
     id: number,
-    data: Partial<Usuario>,
+    data: Partial<Usuario> | ActualizarAdminDto,
     user: JwtPayload,
   ) {
     await this.findOneConRestriccion(id, user);
-    return this.usuariosRepository.update(id, data);
+
+    const cambios: Partial<Usuario> = {
+      ...(data as any),
+    };
+
+    return this.usuariosRepository.update(id, cambios);
   }
+
   async removeConRestriccion(id: number, user: JwtPayload) {
     const admin = await this.findOneConRestriccion(id, user);
 
